@@ -1,0 +1,84 @@
+# ============================================================
+# EPIC: EP03 - Gestión de Órdenes de Trabajo y Reparaciones
+# Proyecto: TrackOps - AutoSync
+# US relacionadas: US07, US08, US10, US26, US27, US34
+# ============================================================
+
+Feature: Gestión de Órdenes de Trabajo y Reparaciones
+  Como parte del sistema TrackOps
+  Quiero gestionar las órdenes de trabajo del taller
+  Para registrar, actualizar y hacer seguimiento de los servicios solicitados
+
+  # ============================================================
+  # US07 - Crear orden de trabajo
+  # ============================================================
+
+  Background:
+    Given el administrador ha iniciado sesión en TrackOps
+    And existe un cliente registrado con nombre "Carlos Ríos" y DNI "45231876"
+    And existe un vehículo registrado con placa "ABC-123" asociado al cliente
+
+  Scenario: Crear orden de trabajo exitosamente
+    Given el administrador accede al módulo de órdenes de trabajo
+    When ingresa los datos de la nueva orden con los siguientes campos:
+      | campo        | valor            |
+      | cliente      | Carlos Ríos      |
+      | vehículo     | ABC-123          |
+      | servicio     | Cambio de aceite |
+      | técnico      | Juan Pérez       |
+      | fecha_inicio | 2026-07-01       |
+    And confirma la creación de la orden
+    Then el sistema debe almacenar la orden con estado "Pendiente"
+    And debe mostrar el mensaje "Orden de trabajo creada exitosamente"
+    And debe asignar un código único a la orden
+
+  Scenario: Crear orden sin seleccionar vehículo
+    Given el administrador accede al módulo de órdenes de trabajo
+    When intenta crear una orden sin seleccionar un vehículo
+    Then el sistema debe mostrar el mensaje "Debe seleccionar un vehículo para continuar"
+    And no debe almacenar ninguna orden
+
+  Scenario Outline: Crear órdenes con distintos tipos de servicio
+    Given el administrador accede al módulo de órdenes de trabajo
+    When crea una orden para el vehículo "<placa>" con el servicio "<servicio>"
+    Then el sistema debe registrar la orden con tipo de servicio "<servicio>"
+    And el estado inicial debe ser "<estado>"
+
+    Examples:
+      | placa   | servicio                  | estado    |
+      | ABC-123 | Cambio de aceite          | Pendiente |
+      | XYZ-456 | Revisión de frenos        | Pendiente |
+      | LMN-789 | Reparación de transmisión | Pendiente |
+      | QRS-321 | Diagnóstico eléctrico     | Pendiente |
+
+  # ============================================================
+  # US08 - Actualizar estado de orden
+  # ============================================================
+
+  Scenario: Técnico actualiza el estado de una orden activa
+    Given existe una orden de trabajo con código "ODT-001" en estado "Pendiente"
+    And el técnico "Juan Pérez" está asignado a la orden
+    When el técnico cambia el estado a "En proceso"
+    Then el sistema debe registrar el cambio de estado
+    And debe mostrar la fecha y hora de la actualización
+    And debe notificar al cliente del cambio
+
+  Scenario Outline: Actualizar orden a diferentes estados válidos
+    Given existe una orden con código "<codigo>" en estado "<estado_actual>"
+    When el técnico cambia el estado a "<nuevo_estado>"
+    Then el sistema debe guardar el nuevo estado "<nuevo_estado>"
+    And debe registrar quién realizó el cambio
+
+    Examples:
+      | codigo  | estado_actual | nuevo_estado |
+      | ODT-001 | Pendiente     | En proceso   |
+      | ODT-002 | En proceso    | Completado   |
+      | ODT-003 | Pendiente     | Cancelado    |
+      | ODT-004 | En proceso    | En espera    |
+
+  Scenario: Intentar revertir estado de orden completada
+    Given existe una orden con código "ODT-001" en estado "Completado"
+    When el administrador intenta cambiar el estado a "Pendiente"
+    Then el sistema debe mostrar el mensaje "No se puede revertir el estado de una orden completada"
+    And el estado debe permanecer como "Completado"
+
