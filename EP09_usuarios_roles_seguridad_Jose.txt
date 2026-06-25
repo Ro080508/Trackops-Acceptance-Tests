@@ -1,0 +1,202 @@
+# ============================================================
+# EPIC: EP09 - Administración de Usuarios, Roles y Seguridad
+# Proyecto: TrackOps - AutoSync
+# US relacionadas (No funcionales): US44, US45, US46, US47, US50
+# ============================================================
+
+Feature: Administración de Usuarios, Roles y Seguridad del Sistema
+  Como sistema TrackOps
+  Quiero garantizar el acceso seguro y controlado
+  Para proteger la información del taller y sus usuarios
+
+  # ============================================================
+  # US44 - Iniciar sesión
+  # ============================================================
+
+  Scenario: Usuario inicia sesión con credenciales válidas
+    Given el usuario "admin@trackops.pe" tiene una cuenta registrada
+    When ingresa su correo "admin@trackops.pe" y contraseña "Admin123*"
+    Then el sistema debe permitir el acceso
+    And debe redirigir al panel principal según su rol
+    And debe registrar la sesión con fecha y hora de ingreso
+
+  Scenario: Usuario intenta iniciar sesión con contraseña incorrecta
+    Given el usuario "tecnico@trackops.pe" tiene una cuenta registrada
+    When ingresa su contraseña incorrecta "wrongpass"
+    Then el sistema debe mostrar el mensaje "Credenciales incorrectas"
+    And no debe permitir el acceso
+    And debe registrar el intento fallido
+
+  Scenario: Sistema bloquea cuenta tras múltiples intentos fallidos
+    Given el usuario "admin@trackops.pe" tiene una cuenta activa
+    When ingresa credenciales incorrectas 5 veces consecutivas
+    Then el sistema debe bloquear temporalmente la cuenta por 15 minutos
+    And debe mostrar el mensaje "Cuenta bloqueada temporalmente. Intente en 15 minutos"
+
+  Scenario Outline: Inicio de sesión con diferentes roles
+    Given existe un usuario "<usuario>" con rol "<rol>"
+    When inicia sesión correctamente con su contraseña "<password>"
+    Then el sistema debe redirigir al panel de "<panel>"
+    And debe mostrar solo las funciones correspondientes al rol "<rol>"
+
+    Examples:
+      | usuario               | rol           | password  | panel          |
+      | admin@trackops.pe     | Administrador | Admin123* | Panel Admin    |
+      | tecnico@trackops.pe   | Técnico       | Tech456*  | Panel Técnico  |
+      | cliente@trackops.pe   | Cliente       | Cli789*   | Portal Cliente |
+      | compras@trackops.pe   | Encargado     | Comp321*  | Panel Compras  |
+
+  Scenario: Sesión expira por inactividad de 30 minutos
+    Given el usuario "admin@trackops.pe" ha iniciado sesión
+    And no ha realizado ninguna acción en los últimos 30 minutos
+    When intenta realizar una acción en el sistema
+    Then el sistema debe cerrar la sesión automáticamente
+    And debe mostrar el mensaje "Tu sesión ha expirado. Por favor, inicia sesión nuevamente"
+
+  # ============================================================
+  # US45 - Recuperar contraseña
+  # ============================================================
+
+  Scenario: Usuario recupera su contraseña exitosamente
+    Given el usuario "tecnico@trackops.pe" tiene cuenta registrada
+    When solicita recuperación de contraseña ingresando su correo
+    Then el sistema debe enviar un enlace de recuperación al correo registrado
+    And el enlace debe expirar en 30 minutos
+    And debe mostrar el mensaje "Se ha enviado un correo con instrucciones para restablecer tu contraseña"
+
+  Scenario: Solicitar recuperación con correo no registrado
+    Given no existe ningún usuario con el correo "noexiste@trackops.pe"
+    When se solicita recuperación de contraseña con ese correo
+    Then el sistema debe mostrar el mensaje "Si el correo existe, recibirás instrucciones en breve"
+    And no debe revelar si el correo está o no registrado
+
+  Scenario Outline: Recuperación de contraseña para diferentes usuarios
+    Given existe el usuario "<usuario>" con correo "<correo>"
+    When solicita recuperación de contraseña
+    Then el sistema debe enviar el correo de recuperación a "<correo>"
+    And el enlace debe ser válido por "<minutos>" minutos
+
+    Examples:
+      | usuario       | correo                | minutos |
+      | Administrador | admin@trackops.pe     | 30      |
+      | Técnico       | tecnico@trackops.pe   | 30      |
+      | Cliente       | cliente@trackops.pe   | 30      |
+      | Encargado     | compras@trackops.pe   | 30      |
+
+  Scenario: Usuario restablece contraseña con enlace válido
+    Given el usuario "admin@trackops.pe" tiene un enlace de recuperación vigente
+    When accede al enlace e ingresa la nueva contraseña "NuevoAdmin123*"
+    And confirma la contraseña "NuevoAdmin123*"
+    Then el sistema debe actualizar la contraseña correctamente
+    And debe mostrar el mensaje "Contraseña actualizada exitosamente"
+    And debe invalidar el enlace de recuperación utilizado
+
+  Scenario: Usuario intenta usar enlace de recuperación expirado
+    Given el usuario "tecnico@trackops.pe" tiene un enlace con más de 30 minutos de antigüedad
+    When intenta acceder al enlace
+    Then el sistema debe mostrar el mensaje "El enlace ha expirado. Solicita uno nuevo"
+
+  # ============================================================
+  # US46 - Registrar usuario
+  # ============================================================
+
+  Scenario: Administrador registra un nuevo usuario exitosamente
+    Given el administrador ha iniciado sesión en TrackOps
+    When accede al módulo de usuarios y completa el formulario con:
+      | campo      | valor               |
+      | nombre     | Roberto Díaz        |
+      | correo     | roberto@trackops.pe |
+      | rol        | Técnico             |
+      | contraseña | Tecnico2026*        |
+    And confirma el registro
+    Then el sistema debe crear la cuenta del nuevo usuario
+    And debe enviar las credenciales al correo "roberto@trackops.pe"
+    And debe mostrar el mensaje "Usuario registrado exitosamente"
+
+  Scenario: Registrar usuario con correo ya existente
+    Given ya existe un usuario con correo "tecnico@trackops.pe"
+    When el administrador intenta registrar otro usuario con el mismo correo
+    Then el sistema debe mostrar el mensaje "El correo ya está en uso por otro usuario"
+    And no debe crear la cuenta duplicada
+
+  Scenario Outline: Registrar usuarios con diferentes roles
+    Given el administrador accede al módulo de gestión de usuarios
+    When registra un nuevo usuario con nombre "<nombre>", correo "<correo>" y rol "<rol>"
+    Then el sistema debe crear el usuario con rol "<rol>"
+    And debe enviar credenciales a "<correo>"
+
+    Examples:
+      | nombre        | correo                 | rol           |
+      | Ana Torres    | ana@trackops.pe        | Técnico       |
+      | Luis Mendoza  | luis@trackops.pe       | Administrador |
+      | Carmen Vega   | carmen@trackops.pe     | Cliente       |
+      | Jorge Paredes | jorge@trackops.pe      | Encargado     |
+
+  Scenario: Registrar usuario con campos obligatorios vacíos
+    Given el administrador accede al formulario de registro de usuarios
+    When intenta guardar el formulario sin ingresar el correo electrónico
+    Then el sistema debe mostrar el mensaje "El correo electrónico es obligatorio"
+    And no debe crear la cuenta
+
+  # ============================================================
+  # US47 - Asignar roles
+  # ============================================================
+
+  Scenario: Administrador asigna un nuevo rol a un usuario
+    Given existe el usuario "roberto@trackops.pe" con rol "Técnico"
+    When el administrador cambia el rol a "Administrador"
+    Then el sistema debe guardar el nuevo rol asignado
+    And debe mostrar el mensaje "Rol actualizado correctamente"
+    And el usuario debe acceder al panel de "Administrador" en su próximo inicio de sesión
+
+  Scenario: Administrador intenta modificar su propio rol
+    Given el administrador "admin@trackops.pe" está gestionando roles
+    When intenta cambiar su propio rol
+    Then el sistema debe mostrar el mensaje "No puedes modificar tu propio rol"
+    And el rol debe permanecer sin cambios
+
+  Scenario Outline: Asignar diferentes roles a usuarios del sistema
+    Given existe el usuario "<usuario>" con rol actual "<rol_actual>"
+    When el administrador cambia el rol a "<nuevo_rol>"
+    Then el sistema debe guardar el rol "<nuevo_rol>" para el usuario "<usuario>"
+
+    Examples:
+      | usuario             | rol_actual    | nuevo_rol     |
+      | ana@trackops.pe     | Técnico       | Administrador |
+      | luis@trackops.pe    | Administrador | Técnico       |
+      | carmen@trackops.pe  | Cliente       | Encargado     |
+      | jorge@trackops.pe   | Encargado     | Técnico       |
+
+  # ============================================================
+  # US50 - Configurar parámetros del sistema
+  # ============================================================
+
+  Scenario: Administrador configura parámetros del sistema
+    Given el administrador tiene permisos de configuración
+    When accede al módulo de configuración y modifica los siguientes parámetros:
+      | parámetro             | valor              |
+      | nombre_taller         | AutoSync Miraflores|
+      | moneda                | PEN                |
+      | tiempo_sesion_minutos | 30                 |
+      | correo_notificaciones | taller@autosync.pe |
+    And confirma los cambios
+    Then el sistema debe guardar los cambios realizados
+    And debe mostrar el mensaje "Configuración actualizada correctamente"
+
+  Scenario: Usuario sin permisos intenta acceder a configuración
+    Given el técnico "tecnico@trackops.pe" ha iniciado sesión
+    When intenta acceder al módulo de configuración del sistema
+    Then el sistema debe mostrar el mensaje "No tienes permisos para acceder a esta sección"
+    And debe redirigir al panel del técnico
+
+  Scenario Outline: Configurar diferentes parámetros del sistema
+    Given el administrador accede al módulo de configuración
+    When modifica el parámetro "<parametro>" con el valor "<valor>"
+    Then el sistema debe guardar "<valor>" para el parámetro "<parametro>"
+
+    Examples:
+      | parametro             | valor               |
+      | nombre_taller         | TrackOps Lima Norte |
+      | tiempo_sesion_minutos | 60                  |
+      | moneda                | PEN                 |
+      | correo_notificaciones | admin@taller.pe     |
