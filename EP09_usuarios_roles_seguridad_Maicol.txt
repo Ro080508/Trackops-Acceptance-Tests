@@ -1,0 +1,99 @@
+# ============================================================
+# EPIC: EP09 - Administración de Usuarios, Roles y Seguridad
+# Proyecto: TrackOps - AutoSync
+# US relacionadas (No funcionales): US44, US45, US46, US47, US50
+# ============================================================
+
+Feature: Administración de Usuarios, Roles y Seguridad del Sistema
+  Como sistema TrackOps
+  Quiero garantizar el acceso seguro y controlado
+  Para proteger la información del taller y sus usuarios
+
+  # ============================================================
+  # US44 - Iniciar sesión
+  # ============================================================
+
+  Scenario: Usuario inicia sesión con credenciales válidas
+    Given el usuario "admin@trackops.pe" tiene una cuenta registrada
+    When ingresa su correo "admin@trackops.pe" y contraseña "Admin123*"
+    Then el sistema debe permitir el acceso
+    And debe redirigir al panel principal según su rol
+    And debe registrar la sesión con fecha y hora de ingreso
+
+  Scenario: Usuario intenta iniciar sesión con contraseña incorrecta
+    Given el usuario "tecnico@trackops.pe" tiene una cuenta registrada
+    When ingresa su contraseña incorrecta "wrongpass"
+    Then el sistema debe mostrar el mensaje "Credenciales incorrectas"
+    And no debe permitir el acceso
+    And debe registrar el intento fallido
+
+  Scenario: Sistema bloquea cuenta tras múltiples intentos fallidos
+    Given el usuario "admin@trackops.pe" tiene una cuenta activa
+    When ingresa credenciales incorrectas 5 veces consecutivas
+    Then el sistema debe bloquear temporalmente la cuenta por 15 minutos
+    And debe mostrar el mensaje "Cuenta bloqueada temporalmente. Intente en 15 minutos"
+
+  Scenario Outline: Inicio de sesión con diferentes roles
+    Given existe un usuario "<usuario>" con rol "<rol>"
+    When inicia sesión correctamente con su contraseña "<password>"
+    Then el sistema debe redirigir al panel de "<panel>"
+    And debe mostrar solo las funciones correspondientes al rol "<rol>"
+
+    Examples:
+      | usuario               | rol           | password  | panel          |
+      | admin@trackops.pe     | Administrador | Admin123* | Panel Admin    |
+      | tecnico@trackops.pe   | Técnico       | Tech456*  | Panel Técnico  |
+      | cliente@trackops.pe   | Cliente       | Cli789*   | Portal Cliente |
+      | compras@trackops.pe   | Encargado     | Comp321*  | Panel Compras  |
+
+  Scenario: Sesión expira por inactividad de 30 minutos
+    Given el usuario "admin@trackops.pe" ha iniciado sesión
+    And no ha realizado ninguna acción en los últimos 30 minutos
+    When intenta realizar una acción en el sistema
+    Then el sistema debe cerrar la sesión automáticamente
+    And debe mostrar el mensaje "Tu sesión ha expirado. Por favor, inicia sesión nuevamente"
+
+  # ============================================================
+  # US45 - Recuperar contraseña
+  # ============================================================
+
+  Scenario: Usuario recupera su contraseña exitosamente
+    Given el usuario "tecnico@trackops.pe" tiene cuenta registrada
+    When solicita recuperación de contraseña ingresando su correo
+    Then el sistema debe enviar un enlace de recuperación al correo registrado
+    And el enlace debe expirar en 30 minutos
+    And debe mostrar el mensaje "Se ha enviado un correo con instrucciones para restablecer tu contraseña"
+
+  Scenario: Solicitar recuperación con correo no registrado
+    Given no existe ningún usuario con el correo "noexiste@trackops.pe"
+    When se solicita recuperación de contraseña con ese correo
+    Then el sistema debe mostrar el mensaje "Si el correo existe, recibirás instrucciones en breve"
+    And no debe revelar si el correo está o no registrado
+
+  Scenario Outline: Recuperación de contraseña para diferentes usuarios
+    Given existe el usuario "<usuario>" con correo "<correo>"
+    When solicita recuperación de contraseña
+    Then el sistema debe enviar el correo de recuperación a "<correo>"
+    And el enlace debe ser válido por "<minutos>" minutos
+
+    Examples:
+      | usuario       | correo                | minutos |
+      | Administrador | admin@trackops.pe     | 30      |
+      | Técnico       | tecnico@trackops.pe   | 30      |
+      | Cliente       | cliente@trackops.pe   | 30      |
+      | Encargado     | compras@trackops.pe   | 30      |
+
+  Scenario: Usuario restablece contraseña con enlace válido
+    Given el usuario "admin@trackops.pe" tiene un enlace de recuperación vigente
+    When accede al enlace e ingresa la nueva contraseña "NuevoAdmin123*"
+    And confirma la contraseña "NuevoAdmin123*"
+    Then el sistema debe actualizar la contraseña correctamente
+    And debe mostrar el mensaje "Contraseña actualizada exitosamente"
+    And debe invalidar el enlace de recuperación utilizado
+
+  Scenario: Usuario intenta usar enlace de recuperación expirado
+    Given el usuario "tecnico@trackops.pe" tiene un enlace con más de 30 minutos de antigüedad
+    When intenta acceder al enlace
+    Then el sistema debe mostrar el mensaje "El enlace ha expirado. Solicita uno nuevo"
+
+
