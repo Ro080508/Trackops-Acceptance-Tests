@@ -1,0 +1,82 @@
+# ============================================================
+# EPIC: EP05 - Gestión de Presupuestos, Pagos e Indicadores
+# Proyecto: TrackOps - AutoSync
+# US relacionadas: US09, US13, US14, US18, US19, US20, US48
+# ============================================================
+
+Feature: Gestión de Presupuestos, Pagos e Indicadores Financieros
+  Como parte del sistema TrackOps
+  Quiero gestionar presupuestos, pagos e indicadores del taller
+  Para controlar el desempeño financiero y brindar transparencia al cliente
+
+  # ============================================================
+  # US09 - Registrar avance de reparación
+  # ============================================================
+
+  Background:
+    Given el administrador ha iniciado sesión en TrackOps
+    And existe una orden de trabajo con código "ODT-001" registrada en el sistema
+
+  Scenario: Técnico registra un avance de reparación
+    Given existe una reparación en proceso para la orden "ODT-001"
+    And el técnico "Juan Pérez" está asignado
+    When el técnico registra el siguiente avance:
+      | campo       | valor                         |
+      | descripcion | Se cambió el filtro de aceite |
+      | porcentaje  | 50                            |
+      | fecha       | 2026-07-01                    |
+    Then el sistema debe almacenar el avance registrado
+    And debe actualizar el porcentaje de progreso de la orden a "50%"
+
+  Scenario Outline: Registrar avances con distintos porcentajes
+    Given existe una reparación activa en la orden "<orden>"
+    When el técnico registra un avance con porcentaje "<porcentaje>"
+    Then el sistema debe actualizar el progreso a "<porcentaje>%"
+
+    Examples:
+      | orden   | porcentaje |
+      | ODT-001 | 25         |
+      | ODT-002 | 50         |
+      | ODT-003 | 75         |
+      | ODT-004 | 100        |
+
+  Scenario: Técnico intenta registrar avance en orden cancelada
+    Given existe una orden "ODT-005" con estado "Cancelado"
+    When el técnico intenta registrar un avance
+    Then el sistema debe mostrar el mensaje "No se puede registrar avance en una orden cancelada"
+
+  # ============================================================
+  # US13 - Generar presupuesto
+  # ============================================================
+
+  Scenario: Administrador genera un presupuesto exitosamente
+    Given el administrador accede a la orden "ODT-001"
+    When ingresa los costos del servicio con los siguientes datos:
+      | concepto            | cantidad | precio_unitario |
+      | Mano de obra        | 2        | 80.00           |
+      | Filtro de aceite    | 1        | 35.00           |
+      | Aceite sintético 4L | 1        | 120.00          |
+    And confirma la generación del presupuesto
+    Then el sistema debe calcular el total en S/. 315.00
+    And debe generar el presupuesto con estado "Pendiente de aprobación"
+    And debe notificar al cliente que tiene un presupuesto disponible
+
+  Scenario: Intentar generar presupuesto sin conceptos
+    Given el administrador accede a la orden "ODT-001"
+    When intenta generar un presupuesto sin ingresar ningún concepto
+    Then el sistema debe mostrar el mensaje "Debe ingresar al menos un concepto para generar el presupuesto"
+
+  Scenario Outline: Generar presupuestos con distintos montos
+    Given existe una orden "<orden>" con servicio "<servicio>"
+    When el administrador genera un presupuesto con monto total de S/. "<monto>"
+    Then el sistema debe registrar el presupuesto con total S/. "<monto>"
+    And el estado del presupuesto debe ser "Pendiente de aprobación"
+
+    Examples:
+      | orden   | servicio                  | monto  |
+      | ODT-001 | Cambio de aceite          | 315.00 |
+      | ODT-002 | Revisión de frenos        | 480.00 |
+      | ODT-003 | Reparación de transmisión | 950.00 |
+      | ODT-004 | Diagnóstico eléctrico     | 200.00 |
+
+
